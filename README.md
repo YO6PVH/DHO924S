@@ -6,3 +6,5 @@ Also we had to change the data donwload to WORD, so we get the full 12bit sample
 
 This code is as is, take more like an example not a stable solution.
 Sometimes the scope needs restarted if does not behave as expected.
+
+Some debug print lines are still left in the code.
