@@ -8,18 +8,49 @@ print("Connected to: ", scope.idn)
 scope.run()
 scope.display_channel(1, enable=True)
 scope.display_channel(2, enable=True)
-scope.set_channel_scale(1, 0.5, use_closest_match=False)
-#scope.set_channel_scale(2, 0.2, use_closest_match=False)
-scope.set_channel_offset(1, -2)
-#scope.set_channel_offset(2, 0)
+scope.display_channel(3, enable=True)
+scope.display_channel(4, enable=True)
 
-scope.timebase_offset = 0
-scope.timebase_scale = 200e-6
+scope.memory_depth = 10e3
+scope.set_probe_ratio(1,1000)
+scope.set_probe_ratio(2,100)
+scope.set_probe_ratio(3,100)
+scope.set_probe_ratio(4,100)
+
+scope.write(":TRIGger:EDGE:SOURce CHAN1")
+scope.write(":TRIGger:EDGE:SLOPe POS")   
+scope.write(":TRIGger:NREJect 0")
+scope.write(":TRIGger:COUPling DC")
+scope.write(":TRIGger:MODE EDGE")
+scope.write(":TRIGger:EDGE:LEVel 1000")
+scope.write(":CHANnel1:BWLimit 20M")
+
+scope.set_channel_scale(1,2000, use_closest_match=False)
+scope.set_channel_offset(1, -2500)
+scope.set_channel_scale(2,200, use_closest_match=False)
+
+scope.set_channel_scale(3,200, use_closest_match=False)
+scope.set_channel_offset(3, -200)
+scope.set_channel_scale(4,200, use_closest_match=False)
+scope.set_channel_offset(4, -200)
+
+scope.timebase_offset = 300e-6
+scope.timebase_scale = 100e-6
+print(scope.sample_rate)    
 
 scope.tforce()
 
 print("trigger forced")
 print(scope.memory_depth)
+
+ch1 = Oscope.read_chanel_converted(1)
+ch2 = Oscope.read_chanel_converted(2)
+
+plt.plot(scope.waveform_time_values,ch1)
+plt.plot(scope.waveform_time_values,ch2)
+
+plt.show()
+
 scope.SourceOutputON()
 scope.SourceWaveSquare()
 scope.SourceAmplitude = 2
