@@ -11,6 +11,7 @@ import time
 import sys
 import struct
 import decimal
+import numpy as np
 
 import vxi11
 
@@ -49,6 +50,7 @@ class DHO924S(vxi11.Instrument):
         self.start = clock()
         super(DHO924S, self).__init__(host, *args, **kwargs)
         idn = self.idn
+        
         match = re.match(self.IDN_PATTERN, idn)
         #if not match:
         #    msg = "Unknown device identification:\n%s\n" \
@@ -62,12 +64,13 @@ class DHO924S(vxi11.Instrument):
         self.serial = idn[2]
         self.firmware = idn[3]
         self.mask_begin_num = None
-        self.possible_probe_ratio_values = self._populate_possible_values('PROBE_RATIO')
+        self.possible_probe_ratio_values = [0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,
+                                            100,200,500,1000,2000,5000,10000,20000,50000]
+        
         self.possible_timebase_scale_values = self._populate_possible_values('TIMEBASE_SCALE')
         self.possible_channel_scale_values = self._populate_possible_values('CHANNEL_SCALE')
-        self.possible_memory_depth_values = (12000, 120000, 1200000, 12000000, 24000000,
-                                              6000,  60000,  600000,  6000000, 12000000,
-                                              3000,  30000,  300000,  3000000,  6000000)
+        self.possible_memory_depth_values = [1000,10000,100000,1000000,5000000,10000000,25000000,50000000]
+        
 
     def clock(self):
         return clock() - self.start
@@ -142,7 +145,7 @@ class DHO924S(vxi11.Instrument):
         :rtype: tuple of float and int values
         """
         values = self.query(":WAVeform:PREamble?")
-        print("preamble",values)
+        #print("preamble",values)
 
         #<format>,<type>,<points>,<count>,<xincrement>,<xorigin>,<xreference>,<yincrement>,<yorigin>,<yreference>
         #
@@ -364,6 +367,61 @@ class DHO924S(vxi11.Instrument):
             value = decimal.Decimal(value)
             value = float(value)
         return possible_values
+
+
+
+    def read_chanel(self, chanel="1"):
+        print("ASCII format broken")
+        self.write(":WAVeform:SOURce CHAN" + str(chanel))
+        self.write(":WAVeform:FORMat ASCii")
+        # print(self.conn.ask(":WAVeform:POINts?"))
+        points = str(self.ask(":WAVeform:DATA?")).split(",")
+        print(str(self.ask(":WAVeform:DATA?")))
+        return np.array(points, dtype=float)
+    
+
+    def read_chanel_raw(self, chanel="1"):
+        self.write(":WAVeform:SOURce CHAN" + str(chanel))
+        self.write(":WAVeform:FORMat WORD")
+        # self.conn.write(":WAV:STAR 1")
+        # self.conn.write(":WAV:STOP 10000")
+        stop = int(self.ask(":WAVeform:STOP?"))
+        self.write(":WAVeform:DATA?")
+        header = self.read_raw(11)
+        # print(header)
+        # NumberHeader = header[1]
+        data = self.read_raw(stop * 2)
+        return np.frombuffer(data, dtype=np.uint16)
+    
+
+    def read_chanel_converted(self, chanel="1"):
+        mode = "RAW"
+        
+        self.write(":WAVeform:SOURce CHANnel" + str(chanel))       
+        self.write(":WAVeform:MODE " + mode)        
+        self.write(":WAVeform:FORMat WORD")
+        
+        #print(self.ask(":WAVeform:SOURce?"))
+        #self.write(":WAV:STAR 1")
+        #self.write(":WAV:STAR 0")
+        # self.conn.write(":WAV:STOP 10000")
+        stop = int(self.ask(":WAVeform:STOP?"))
+        
+       # print(stop)
+        self.write(":WAVeform:DATA?")
+        header = self.read_raw(11)
+        # print(header)
+        # NumberHeader = header[1]
+        data = self.read_raw(stop * 2)
+       # print("DataLen",len(data))
+        fmt, typ, pnts, cnt, xinc, xorig, xref, yinc, yorig, yref = self.waveform_preamble
+        return ( np.frombuffer(data, dtype=np.uint16) *1.0 - yorig - yref)*yinc
+   
+
+    def convert_raw(self, raw_data, settings):
+        c = settings
+        return (raw_data - c["yorigin"] - c["yreference"]) * c["ydeltra"]
+    
 
     @property
     def timebase_offset(self):
@@ -691,9 +749,13 @@ class DHO924S(vxi11.Instrument):
         :type channel: int or str
         :param float ratio: Ratio of the probe connected to the channel
         """
-        ratio = float(ratio)
-        ratio = min(self.possible_probe_ratio_values, key=lambda x:abs(x-ratio))
+        #ratio = float(ratio)
+        #ratio = min(self.possible_probe_ratio_values, key=lambda x:abs(x-ratio))
         channel = self._interpret_channel(channel)
+        if ratio not in self.possible_probe_ratio_values:
+            print("Probe ratio Error")
+            return
+        print(":{0}:PROBe {1}".format(channel, ratio))
         self.write(":{0}:PROBe {1}".format(channel, ratio))
 
 
